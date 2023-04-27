@@ -771,8 +771,8 @@ async function returnBook(userReturningId,eBookToReturnId, res = null){
   eBookToReturn.availableCopies++; //Increase available copies to reflect the return
   userReturning.checkedOutBookIds.splice(positionOfBook, 1);
 
-  (await eBookToReturn).save();
-  (await userReturning).save();
+  await eBookToReturn.save();
+  await userReturning.save();
   if(!res) console.log("Autoreturn successfully returned a book");
 
   //Add ebook to the user that is next in line in the queue (if it is not empty for this book)
@@ -781,6 +781,7 @@ async function returnBook(userReturningId,eBookToReturnId, res = null){
     if (userRecievingBookId = (eBookToReturn).holdQueue.shift()) {
       CheckOut(userRecievingBookId, eBookToReturnId);
       console.log("User with UUID " + userRecievingBookId + " received book with UUID " + eBookToReturnId);
+      
       if (res) return res.status(200).json({ result: "Success", message: userRecievingBookId + " received " + eBookToReturnId });
     }
     eBookToReturn.save();
