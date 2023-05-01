@@ -1,4 +1,4 @@
-// Required modules
+// Required modules //
 const express = require('express');
 const bodyParser = require('body-parser');
 const bcrypt = require('bcrypt');
@@ -65,9 +65,62 @@ app.get('/', checkAuthenticated, (req, res) => {
         name: req.user.name,
         lastname:req.user.lastName,
         email: req.user.email,
-        id: req.user.id
+        id: req.user.id,
+        usertype: req.user.userType
     });
 });
+
+app.get('/accountactions', checkAuthenticated, async (req, res) => {
+  try {
+    // Find the user in the database
+    const user = await Customer.findById(req.user._id);
+
+    // Render the accountactions view with the user information
+    res.render('accountactions.ejs', {
+      name: user.firstName,
+      lastname: user.lastName,
+      email: user.email,
+      id: user.id,
+      usertype: user.userType
+    });
+  } catch {
+    res.redirect('/');
+  }
+});
+
+
+
+
+app.get('/home', (req, res) => {
+  res.render('home.ejs')
+})
+
+app.get('/error', (req, res) => {
+  res.render('error.ejs')
+})
+
+app.get('/curatoraddbook', checkAuthenticated, checkCurator, (req, res) => {
+  res.render('curatoraddbook.ejs')
+})
+
+function checkCurator(req, res, next) {
+  if (req.user.userType === 'Curator') {
+    return next()
+  }
+  res.redirect('/error')
+}
+
+app.get('/adminmakecurator', checkAuthenticated, checkAdmin, (req, res) => {
+  res.render('adminmakecurator.ejs')
+})
+
+function checkAdmin(req, res, next) {
+  if (req.user.userType === 'Admin') {
+    return next()
+  }
+  res.redirect('/error')
+}
+
 
   
 app.get('/login', checkNotAuthenticated, (req, res) => {
@@ -75,7 +128,7 @@ app.get('/login', checkNotAuthenticated, (req, res) => {
 })
   
 app.post('/login', checkNotAuthenticated, passport.authenticate('local', {
-    successRedirect: '/',
+    successRedirect: '/home',
     failureRedirect: '/login',
     failureFlash: true
 }))
@@ -84,6 +137,18 @@ app.post('/login', checkNotAuthenticated, passport.authenticate('local', {
 app.get('/register', checkNotAuthenticated, (req, res) => {
     res.render('register.ejs')
 })
+
+app.get('/editinfo', checkAuthenticated, (req, res) => {
+  res.render('editinfo.ejs', {
+      name: req.user.name,
+      lastname:req.user.lastName,
+      email: req.user.email,
+      age: req.user.age,
+      id: req.user.id
+  
+  })
+  
+});
 
 
 Customer.find({}, function(err, customers) {
@@ -137,7 +202,7 @@ app.post('/register', checkNotAuthenticated, async (req, res) => {
         _id: 1
 
     })
-    
+console.log(users);
       res.redirect('/login')
     } catch {
       res.redirect('/register')
@@ -151,45 +216,173 @@ app.delete('/logout', (req, res, next) => {
       if (err) {
         return next(err);
       }
-      res.redirect('/login');
+      res.redirect('/home');
     });
 });
 
-app.post('/search', (req, res) => {
-    const searchInput = req.body.searchInput;
-    const jsonData = JSON.parse(fs.readFileSync('ebooks.json', 'utf-8'));
-    const result = jsonData.find(item => item.title === searchInput);
-    if (result) {
-        console.log(result.author)
-        res.render('details.ejs', {item: result, 
+// app.post('/search', (req, res) => {
+//     const searchInput = req.body.searchInput;
+//     const jsonData = JSON.parse(fs.readFileSync('ebooks.json', 'utf-8'));
+//     const result = jsonData.find(item => item.title === searchInput);
+//     if (result) {
+//         console.log(result.author)
+//         res.render('details.ejs', {item: result, 
            
-        id:result.id,
-        author:result.author,
-        publisher:result.publisher,
-        genre:result.genre,
-        title:result.title,
-        numberOfPages:result.numberOfPages,
-        ISBN:result.ISBN,
-        description:result.description,
-        publishDate:result.publishDate,
-        coverImageURL:result.coverImageURL,
-        availableCopies:result.availableCopies,
+//         id:result.id,
+//         author:result.author,
+//         publisher:result.publisher,
+//         genre:result.genre,
+//         title:result.title,
+//         numberOfPages:result.numberOfPages,
+//         ISBN:result.ISBN,
+//         description:result.description,
+//         publishDate:result.publishDate,
+//         coverImageURL:result.coverImageURL,
+//         availableCopies:result.availableCopies,
 
-        });
-    } else {
-      res.send('Nothing found!');
-    }
+//         });
+//     } else {
+//       res.send('Nothing found!');
+//     }
+// });
+
+app.post('/search', (req, res) => {
+  const searchInput = req.body.searchInput;
+  const jsonData = JSON.parse(fs.readFileSync('ebooks.json', 'utf-8'));
+  const regex = new RegExp(searchInput, 'i');
+  const results = jsonData.filter(item => {
+    return regex.test(item.title) || regex.test(item.author) || regex.test(item.genre);
+  });
+  if (results.length > 0) {
+    res.render('details.ejs', { results: results, searchInput: searchInput });
+  } else {
+    res.render('home.ejs');
+  }
 });
+
+
 
 
 app.post('/catalog', (req, res) => {
     const jsonData = JSON.parse(fs.readFileSync('ebooks.json', 'utf-8'));
     const bookTitles = jsonData.map(book => book.title);
-    console.log(bookTitles);
+   // console.log(bookTitles);
   
     res.render('catalog.ejs',{bookTitles});
 });
-  
+
+
+
+app.post('/editinfo', checkAuthenticated, async (req, res) => {
+  try {
+    // Find the user in the database
+    const user = await Customer.findById(req.user._id);
+
+    // Check if the email already exists in the database
+    const emailExists = await Customer.exists({ email: req.body.email });
+    if (emailExists && user.email !== req.body.email) {
+      // If the email already exists in the database and it's not the user's current email,
+      // redirect back to the editinfo page with an error message
+      return res.render('error.ejs', {
+        error: 'Email already exists in the database'
+      });
+    }
+
+    // Update the user information
+    user.firstName = req.body.name;
+    user.lastName = req.body.lastname;
+    user.age = req.body.age;
+    user.email = req.body.email;
+
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(req.body.password, 10);
+    // Set the user's password to the hashed password
+    user.password = hashedPassword;
+
+    // Save the updated user to the database
+    await user.save();
+
+    // Update the user information in the users array
+    const index = users.findIndex(u => u.id === req.user.id);
+    if (index !== -1) {
+      users[index].name = req.body.name;
+      users[index].lastName = req.body.lastname;
+      users[index].age = req.body.age;
+      users[index].email = req.body.email;
+      users[index].password = hashedPassword;
+    }
+
+    // Redirect to the home page
+    res.redirect('/');
+  } catch (err) {
+    console.error(err);
+    res.redirect('/editinfo');
+  }
+});
+
+app.post('/curatoraddbook', function(req, res) {
+  fs.readFile('ebooks.json', function(err, data) {
+    if (err) {
+      console.log(err);
+      res.status(500).send('Error reading ebooks.json');
+      return;
+    }
+    
+    var ebooks = JSON.parse(data);
+    var newBook = {
+      "_id": ebooks.length + 1,
+      "author": req.body.author,
+      "publisher": req.body.publisher,
+      "genre": req.body.genre,
+      "title": req.body.title,
+      "numberOfPages": parseInt(req.body.numberOfPages),
+      "ISBN": req.body.ISBN,
+      "description": req.body.description,
+      "publishDate": req.body.publishDate,
+      "coverImageURL": req.body.coverImageURL,
+      "availableCopies": parseInt(req.body.availableCopies)
+    };
+    
+    ebooks.push(newBook);
+    var json = JSON.stringify(ebooks, null, 2);
+
+    fs.writeFile('ebooks.json', json, function(err) {
+      if (err) {
+        console.log(err);
+        res.status(500).send('Error writing to ebooks.json');
+        return;
+      }
+      
+      res.redirect('/');
+    });
+  });
+});
+
+
+app.post('/adminmakecurator', checkAuthenticated, checkAdmin, async (req, res) => {
+  try {
+    // Find the user in the database
+    const user = await Customer.findOne({ id: req.body.userID });
+
+    // Update the user's userType to "Curator"
+    user.userType = "Curator";
+    await user.save();
+
+    // Update the user's userType in the users array
+    const index = users.findIndex((u) => u.id === user.id);
+    if (index !== -1) {
+      users[index].userType = "Curator";
+    }
+
+    // Redirect to the accountactions page with a success message
+    req.flash('success_msg', 'User has been successfully made a curator');
+    res.redirect('/accountactions');
+  } catch {
+    res.redirect('/');
+  }
+});
+
+
 
 //functions
 function checkAuthenticated(req, res, next) {
