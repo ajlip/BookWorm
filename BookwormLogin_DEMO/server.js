@@ -251,7 +251,7 @@ app.post('/search', (req, res) => {
   const jsonData = JSON.parse(fs.readFileSync('ebooks.json', 'utf-8'));
   const regex = new RegExp(searchInput, 'i');
   const results = jsonData.filter(item => {
-    return regex.test(item.title) || regex.test(item.author) || regex.test(item.genre);
+    return regex.test(item.title) || regex.test(item.author) || regex.test(item.genre) || regex.test(item.ISBN) ||regex.test(item.publisher);
   });
   if (results.length > 0) {
     res.render('details.ejs', { results: results, searchInput: searchInput });
